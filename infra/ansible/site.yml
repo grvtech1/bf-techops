@@ -1,0 +1,16 @@
+---
+- name: Harden optional break-glass diagnostic hosts
+  hosts: diagnostic_hosts
+  become: true
+  gather_facts: true
+  serial: 1
+  pre_tasks:
+    - name: Require Ubuntu 24.04 or newer
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_version is version('24.04', '>=')
+        fail_msg: "This playbook is validated only for Ubuntu 24.04 or newer."
+  roles:
+    - breakglass_host
+

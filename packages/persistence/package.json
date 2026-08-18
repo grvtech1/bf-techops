@@ -1,0 +1,16 @@
+{
+  "name": "@merchant-platform/persistence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "mysql2": "3.23.2",
+    "reflect-metadata": "0.2.2",
+    "typeorm": "0.3.31"
+  }
+}

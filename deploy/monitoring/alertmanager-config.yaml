@@ -1,0 +1,42 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: merchant-platform
+  namespace: merchant-platform
+  labels:
+    alertmanagerConfig: merchant-platform
+spec:
+  route:
+    receiver: platform-warning
+    groupBy: [alertname, service]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    routes:
+      - receiver: platform-critical
+        matchers:
+          - { name: severity, value: critical, matchType: "=" }
+        repeatInterval: 30m
+  receivers:
+    - name: platform-warning
+      webhookConfigs:
+        - url: http://merchant-portal.merchant-platform.svc:3000/api/alerts
+          sendResolved: true
+          httpConfig:
+            authorization:
+              type: Bearer
+              credentials:
+                name: alertmanager-routing
+                key: token
+    - name: platform-critical
+      webhookConfigs:
+        - url: http://merchant-portal.merchant-platform.svc:3000/api/alerts
+          sendResolved: true
+          maxAlerts: 20
+          httpConfig:
+            authorization:
+              type: Bearer
+              credentials:
+                name: alertmanager-routing
+                key: token
+

@@ -1,0 +1,14 @@
+node_modules/
+.next/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+evidence/runs/
+

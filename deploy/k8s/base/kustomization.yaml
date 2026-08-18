@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - configmap.yaml
+  - deployments.yaml
+  - services.yaml
+  - availability.yaml
+  - migration-job.yaml
+images:
+  - name: merchant-api-image
+    newName: merchant-platform-api
+    newTag: local
+  - name: merchant-worker-image
+    newName: merchant-platform-worker
+    newTag: local
+  - name: merchant-portal-image
+    newName: merchant-platform-portal
+    newTag: local
+  - name: merchant-migration-image
+    newName: merchant-platform-migration
+    newTag: local
+

@@ -1,0 +1,206 @@
+name: Publish and propose GitOps promotion
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  release-context:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_publish: ${{ steps.decision.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 2
+      - name: Reject GitOps-only release loops
+        id: decision
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git rev-parse "${RELEASE_SHA}^" >/dev/null 2>&1; then
+            mapfile -t changed < <(git diff --name-only "${RELEASE_SHA}^" "$RELEASE_SHA")
+          else
+            mapfile -t changed < <(git show --pretty='' --name-only "$RELEASE_SHA")
+          fi
+          printf 'changed=%s\n' "${changed[*]}"
+          if [[ "${#changed[@]}" -eq 1 && "${changed[0]}" == "deploy/k8s/overlays/production/kustomization.yaml" ]]; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: release-context
+    if: needs.release-context.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      registry_prefix: ${{ steps.names.outputs.registry_prefix }}
+      api_digest: ${{ steps.api.outputs.digest }}
+      worker_digest: ${{ steps.worker.outputs.digest }}
+      portal_digest: ${{ steps.portal.outputs.digest }}
+      migration_digest: ${{ steps.migration.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_PUBLISH_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: merchant-platform-${{ github.run_id }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: names
+        shell: bash
+        run: echo "registry_prefix=${{ steps.ecr.outputs.registry }}/merchant-platform" >> "$GITHUB_OUTPUT"
+      - name: Build and push API
+        id: api
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          target: api
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.names.outputs.registry_prefix }}-api:sha-${{ env.RELEASE_SHA }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+          provenance: mode=max
+          sbom: true
+      - name: Build and push worker
+        id: worker
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          target: worker
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.names.outputs.registry_prefix }}-worker:sha-${{ env.RELEASE_SHA }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+          provenance: mode=max
+          sbom: true
+      - name: Build and push portal
+        id: portal
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          target: portal
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.names.outputs.registry_prefix }}-portal:sha-${{ env.RELEASE_SHA }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+          provenance: mode=max
+          sbom: true
+      - name: Build and push migration
+        id: migration
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          target: migration
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.names.outputs.registry_prefix }}-migration:sha-${{ env.RELEASE_SHA }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+          provenance: mode=max
+          sbom: true
+      - uses: sigstore/cosign-installer@v4
+      - name: Keyless-sign immutable images
+        env:
+          PREFIX: ${{ steps.names.outputs.registry_prefix }}
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+          WORKER_DIGEST: ${{ steps.worker.outputs.digest }}
+          PORTAL_DIGEST: ${{ steps.portal.outputs.digest }}
+          MIGRATION_DIGEST: ${{ steps.migration.outputs.digest }}
+        run: |
+          cosign sign --yes "$PREFIX-api@$API_DIGEST"
+          cosign sign --yes "$PREFIX-worker@$WORKER_DIGEST"
+          cosign sign --yes "$PREFIX-portal@$PORTAL_DIGEST"
+          cosign sign --yes "$PREFIX-migration@$MIGRATION_DIGEST"
+
+  propose-promotion:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: main
+      - uses: azure/setup-kubectl@v5
+        with: { version: v1.36.2 }
+      - uses: imranismail/setup-kustomize@v2
+        with: { kustomize-version: "5.8.1" }
+      - uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_PUBLISH_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: merchant-platform-promote-${{ github.run_id }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: sigstore/cosign-installer@v4
+      - name: Update all production digests
+        env:
+          PREFIX: ${{ needs.publish.outputs.registry_prefix }}
+          API_DIGEST: ${{ needs.publish.outputs.api_digest }}
+          WORKER_DIGEST: ${{ needs.publish.outputs.worker_digest }}
+          PORTAL_DIGEST: ${{ needs.publish.outputs.portal_digest }}
+          MIGRATION_DIGEST: ${{ needs.publish.outputs.migration_digest }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          branch="gitops/promote-${RELEASE_SHA::7}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$branch"
+          cd deploy/k8s/overlays/production
+          kustomize edit set image \
+            "merchant-api-image=$PREFIX-api@$API_DIGEST" \
+            "merchant-worker-image=$PREFIX-worker@$WORKER_DIGEST" \
+            "merchant-portal-image=$PREFIX-portal@$PORTAL_DIGEST" \
+            "merchant-migration-image=$PREFIX-migration@$MIGRATION_DIGEST"
+          cd ../../../..
+          rendered="$(kubectl kustomize deploy/k8s/overlays/production)"
+          grep -Fq "$PREFIX-api@$API_DIGEST" <<< "$rendered"
+          grep -Fq "$PREFIX-worker@$WORKER_DIGEST" <<< "$rendered"
+          grep -Fq "$PREFIX-portal@$PORTAL_DIGEST" <<< "$rendered"
+          grep -Fq "$PREFIX-migration@$MIGRATION_DIGEST" <<< "$rendered"
+          mapfile -t images < <(grep -oE 'image: [^[:space:]]+@sha256:[a-f0-9]{64}' <<< "$rendered" | awk '{print $2}' | sort -u)
+          test "${#images[@]}" -eq 4
+          for image in "${images[@]}"; do
+            cosign verify \
+              --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/publish.yaml@refs/heads/main" \
+              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+              "$image"
+          done
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add deploy/k8s/overlays/production/kustomization.yaml
+          git commit -m "chore(gitops): promote sha-${RELEASE_SHA}"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "chore(gitops): promote sha-${RELEASE_SHA::7}" \
+            --body "Promotes four signed, multi-architecture images by immutable digest. Review CI, provenance, migration compatibility, and rollback readiness before merge."

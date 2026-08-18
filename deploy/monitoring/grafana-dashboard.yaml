@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: merchant-platform-dashboard
+  namespace: merchant-platform
+  labels:
+    grafana_dashboard: "1"
+data:
+  merchant-platform.json: |-
+    {
+      "title": "Merchant Platform Operations",
+      "uid": "merchant-platform",
+      "schemaVersion": 41,
+      "refresh": "30s",
+      "time": {"from": "now-6h", "to": "now"},
+      "tags": ["merchant-platform", "production"],
+      "panels": [
+        {"id": 1, "type": "stat", "title": "API request rate", "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4}, "targets": [{"expr": "sum(rate(merchant_platform_http_requests_total[5m]))", "legendFormat": "req/s"}], "fieldConfig": {"defaults": {"unit": "reqps"}}},
+        {"id": 2, "type": "stat", "title": "API 5xx rate", "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4}, "targets": [{"expr": "sum(rate(merchant_platform_http_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(merchant_platform_http_requests_total[5m])), 0.001)", "legendFormat": "error"}], "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.05}]}}}},
+        {"id": 3, "type": "stat", "title": "Oldest outbox event", "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4}, "targets": [{"expr": "max(merchant_platform_outbox_oldest_pending_age_seconds)", "legendFormat": "age"}], "fieldConfig": {"defaults": {"unit": "s"}}},
+        {"id": 4, "type": "stat", "title": "Queue waiting", "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4}, "targets": [{"expr": "max(merchant_platform_notification_queue_waiting)", "legendFormat": "jobs"}]},
+        {"id": 5, "type": "timeseries", "title": "Request latency", "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(merchant_platform_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p95"}, {"expr": "histogram_quantile(0.50, sum by (le) (rate(merchant_platform_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p50"}], "fieldConfig": {"defaults": {"unit": "s"}}},
+        {"id": 6, "type": "timeseries", "title": "Invoice outcomes", "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8}, "targets": [{"expr": "sum by (outcome) (rate(merchant_platform_invoices_total[5m]))", "legendFormat": "{{outcome}}"}]},
+        {"id": 7, "type": "timeseries", "title": "Notification delivery", "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8}, "targets": [{"expr": "sum by (outcome) (increase(merchant_platform_notification_deliveries_total[15m]))", "legendFormat": "{{outcome}}"}]},
+        {"id": 8, "type": "timeseries", "title": "Available replicas", "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8}, "targets": [{"expr": "kube_deployment_status_replicas_available{namespace=\"merchant-platform\"}", "legendFormat": "{{deployment}}"}]},
+        {"id": 9, "type": "timeseries", "title": "Payment webhook outcomes", "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8}, "targets": [{"expr": "sum by (outcome, event_type) (increase(merchant_platform_payment_webhooks_total[15m]))", "legendFormat": "{{event_type}} / {{outcome}}"}]}
+      ]
+    }

@@ -1,0 +1,8 @@
+---
+breakglass_admin_users:
+  - name: platform-admin
+    ssh_public_key: "REPLACE_WITH_APPROVED_ED25519_PUBLIC_KEY"
+ssh_allow_groups:
+  - platform-admin
+unattended_reboot_time: "02:30"
+

@@ -1,0 +1,33 @@
+prometheus:
+  prometheusSpec:
+    retention: 30d
+    retentionSize: 40GB
+    replicas: 2
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3-retain
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 50Gi
+    resources:
+      requests: { cpu: 500m, memory: 1536Mi }
+      limits: { cpu: "2", memory: 3Gi }
+alertmanager:
+  alertmanagerSpec:
+    replicas: 2
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3-retain
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 10Gi
+grafana:
+  persistence:
+    enabled: true
+    storageClassName: gp3-retain
+    accessModes: [ReadWriteOnce]
+    size: 10Gi

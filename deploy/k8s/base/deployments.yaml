@@ -1,0 +1,242 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: merchant-api
+  namespace: merchant-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels: &apiLabels
+    app.kubernetes.io/name: merchant-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: merchant-platform
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: merchant-api
+  template:
+    metadata:
+      labels: *apiLabels
+    spec:
+      serviceAccountName: merchant-api
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeAffinityPolicy: Honor
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: merchant-api
+      containers:
+        - name: api
+          image: merchant-api-image
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: merchant-platform-config
+            - secretRef:
+                name: merchant-api-runtime
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+          resources:
+            requests: { cpu: 150m, memory: 192Mi }
+            limits: { cpu: 750m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: merchant-worker
+  namespace: merchant-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels: &workerLabels
+    app.kubernetes.io/name: merchant-worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: merchant-platform
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: merchant-worker
+  template:
+    metadata:
+      labels: *workerLabels
+    spec:
+      serviceAccountName: merchant-worker
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: merchant-worker
+      containers:
+        - name: worker
+          image: merchant-worker-image
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: merchant-platform-config
+            - secretRef:
+                name: merchant-worker-runtime
+          ports:
+            - name: metrics
+              containerPort: 9091
+          startupProbe:
+            httpGet: { path: /health/live, port: metrics }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /health/live, port: metrics }
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet: { path: /health/ready, port: metrics }
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          resources:
+            requests: { cpu: 100m, memory: 160Mi }
+            limits: { cpu: 600m, memory: 384Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: merchant-portal
+  namespace: merchant-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels: &portalLabels
+    app.kubernetes.io/name: merchant-portal
+    app.kubernetes.io/component: portal
+    app.kubernetes.io/part-of: merchant-platform
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: merchant-portal
+  template:
+    metadata:
+      labels: *portalLabels
+    spec:
+      serviceAccountName: merchant-portal
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: merchant-portal
+      containers:
+        - name: portal
+          image: merchant-portal-image
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: merchant-platform-config
+            - secretRef:
+                name: merchant-portal-runtime
+          ports:
+            - name: http
+              containerPort: 3000
+          startupProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }

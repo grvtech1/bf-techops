@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: merchant-platform-migrate
+  namespace: merchant-platform
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: merchant-platform-migrate
+        app.kubernetes.io/part-of: merchant-platform
+    spec:
+      restartPolicy: Never
+      serviceAccountName: merchant-migration
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: migrate
+          image: merchant-migration-image
+          envFrom:
+            - secretRef:
+                name: merchant-migration-runtime
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            capabilities: { drop: ["ALL"] }

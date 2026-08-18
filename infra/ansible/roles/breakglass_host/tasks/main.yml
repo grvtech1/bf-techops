@@ -1,0 +1,95 @@
+---
+- name: Install security and diagnostic packages
+  ansible.builtin.apt:
+    name:
+      - auditd
+      - curl
+      - jq
+      - unattended-upgrades
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create approved administrative groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ ssh_allow_groups }}"
+
+- name: Create named break-glass users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: "{{ ssh_allow_groups | join(',') }}"
+    append: true
+    shell: /bin/bash
+    create_home: true
+    password_lock: true
+  loop: "{{ breakglass_admin_users }}"
+  no_log: true
+
+- name: Install approved SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    key: "{{ item.ssh_public_key }}"
+    state: present
+    exclusive: true
+  loop: "{{ breakglass_admin_users }}"
+  no_log: true
+
+- name: Grant audited break-glass sudo access
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/merchant-platform-breakglass
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+    content: |
+      %{{ ssh_allow_groups[0] }} ALL=(ALL:ALL) NOPASSWD: ALL
+
+- name: Configure hardened SSH policy
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/60-merchant-platform.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      X11Forwarding no
+      AllowTcpForwarding no
+      MaxAuthTries 3
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+      AllowGroups {{ ssh_allow_groups | join(' ') }}
+  notify: Validate and reload ssh
+
+- name: Enable automatic security updates
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/52merchant-platform-unattended
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+        "${distro_id}:${distro_codename}-security";
+      };
+      Unattended-Upgrade::Automatic-Reboot "true";
+      Unattended-Upgrade::Automatic-Reboot-Time "{{ unattended_reboot_time }}";
+
+- name: Enable audit service
+  ansible.builtin.service:
+    name: auditd
+    state: started
+    enabled: true
+
+- name: Record hardening evidence
+  ansible.builtin.command: sshd -T
+  register: sshd_effective_config
+  changed_when: false
+
+- name: Assert password and root login are disabled
+  ansible.builtin.assert:
+    that:
+      - "'passwordauthentication no' in sshd_effective_config.stdout"
+      - "'permitrootlogin no' in sshd_effective_config.stdout"

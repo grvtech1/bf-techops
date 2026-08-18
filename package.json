@@ -1,0 +1,27 @@
+{
+  "name": "merchant-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-oriented merchant billing and operations platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test packages/domain/test/*.test.js",
+    "build": "npm run build -w @merchant-platform/persistence && npm run build -w @merchant-platform/api && npm run build -w @merchant-platform/worker && npm run build -w @merchant-platform/portal",
+    "start:dev": "docker compose up --build",
+    "stop:dev": "docker compose down --remove-orphans",
+    "validate": "node scripts/validate-repository.mjs",
+    "load": "node scripts/load-test.mjs",
+    "check": "npm test && npm run validate"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,69 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: merchant-portal
+  namespace: merchant-platform
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: REPLACE_ACM_CERTIFICATE_ARN
+    alb.ingress.kubernetes.io/wafv2-acl-arn: REPLACE_WAF_WEB_ACL_ARN
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/auth-type: oidc
+    alb.ingress.kubernetes.io/auth-idp-oidc: '{"issuer":"REPLACE_OIDC_ISSUER","authorizationEndpoint":"REPLACE_OIDC_AUTHORIZATION_ENDPOINT","tokenEndpoint":"REPLACE_OIDC_TOKEN_ENDPOINT","userInfoEndpoint":"REPLACE_OIDC_USERINFO_ENDPOINT","secretName":"merchant-portal-oidc"}'
+    alb.ingress.kubernetes.io/auth-on-unauthenticated-request: authenticate
+    alb.ingress.kubernetes.io/auth-scope: "openid profile email"
+    alb.ingress.kubernetes.io/auth-session-cookie: MerchantPlatformAuth
+    alb.ingress.kubernetes.io/auth-session-timeout: "28800"
+    external-dns.alpha.kubernetes.io/ttl: "60"
+    alb.ingress.kubernetes.io/load-balancer-attributes: routing.http.drop_invalid_header_fields.enabled=true,deletion_protection.enabled=true,access_logs.s3.enabled=true,access_logs.s3.bucket=REPLACE_ALB_LOG_BUCKET
+spec:
+  ingressClassName: alb
+  rules:
+    - host: REPLACE_PORTAL_HOSTNAME
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: merchant-portal
+                port: { name: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: merchant-api
+  namespace: merchant-platform
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: REPLACE_ACM_CERTIFICATE_ARN
+    alb.ingress.kubernetes.io/wafv2-acl-arn: REPLACE_WAF_WEB_ACL_ARN
+    alb.ingress.kubernetes.io/healthcheck-path: /health/ready
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/load-balancer-attributes: routing.http.drop_invalid_header_fields.enabled=true,deletion_protection.enabled=true,access_logs.s3.enabled=true,access_logs.s3.bucket=REPLACE_ALB_LOG_BUCKET
+    external-dns.alpha.kubernetes.io/ttl: "60"
+spec:
+  ingressClassName: alb
+  rules:
+    - host: REPLACE_API_HOSTNAME
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: merchant-api
+                port: { name: http }
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: merchant-api
+                port: { name: http }

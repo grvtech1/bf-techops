@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: merchant-platform-config
+  namespace: merchant-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+data:
+  NODE_ENV: development
+  API_PORT: "8080"
+  WORKER_METRICS_PORT: "9091"
+  WORKER_CONCURRENCY: "8"
+  OUTBOX_POLL_INTERVAL_MS: "1000"
+  NOTIFICATION_MAX_ATTEMPTS: "5"
+  NOTIFICATION_BASE_DELAY_MS: "1000"
+  NOTIFICATION_PROVIDER: log
+  IDEMPOTENCY_RETENTION_DAYS: "7"
+  OUTBOX_RETENTION_DAYS: "30"
+  WEBHOOK_RECEIPT_RETENTION_DAYS: "400"
+  API_INTERNAL_URL: http://merchant-api:8080
+  RELEASE_VERSION: local

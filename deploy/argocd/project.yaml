@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: merchant-platform
+  namespace: argocd
+spec:
+  description: Merchant platform production workloads
+  sourceRepos:
+    - REPLACE_REPO_URL
+  destinations:
+    - namespace: merchant-platform
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+

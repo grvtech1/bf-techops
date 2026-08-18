@@ -1,0 +1,19 @@
+{
+  "name": "@merchant-platform/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@merchant-platform/persistence": "*",
+    "bullmq": "6.0.5",
+    "ioredis": "5.11.1",
+    "prom-client": "15.1.3",
+    "reflect-metadata": "0.2.2",
+    "typeorm": "0.3.31"
+  }
+}
+

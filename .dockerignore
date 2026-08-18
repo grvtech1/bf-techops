@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+**/node_modules
+**/.next
+**/dist
+evidence
+infra
+docs
+*.md
+
