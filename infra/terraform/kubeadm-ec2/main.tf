@@ -67,6 +67,7 @@ resource "aws_instance" "control_plane" {
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.kubeadm.id]
   key_name               = aws_key_pair.main.key_name
+  iam_instance_profile   = aws_iam_instance_profile.node.name # EBS CSI ke liye
 
   root_block_device {
     volume_size = 20    # 20 GB disk
@@ -83,6 +84,7 @@ resource "aws_instance" "worker" {
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.kubeadm.id]
   key_name               = aws_key_pair.main.key_name
+  iam_instance_profile   = aws_iam_instance_profile.node.name # EBS CSI ke liye
 
   root_block_device {
     volume_size = 20
