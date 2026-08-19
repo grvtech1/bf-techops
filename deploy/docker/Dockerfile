@@ -1,9 +1,9 @@
-FROM node:24-alpine AS rds-trust
+FROM node:26-alpine AS rds-trust
 RUN wget -qO /aws-rds-global-bundle.pem \
       https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
     && test "$(grep -c 'BEGIN CERTIFICATE' /aws-rds-global-bundle.pem)" -ge 3
 
-FROM node:24-alpine AS dependencies
+FROM node:26-alpine AS dependencies
 WORKDIR /workspace
 COPY package*.json tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
@@ -21,7 +21,7 @@ RUN npm run build
 FROM dependencies AS production-dependencies
 RUN npm prune --omit=dev --ignore-scripts --no-audit
 
-FROM node:24-alpine AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /workspace
 COPY --from=rds-trust /aws-rds-global-bundle.pem /etc/ssl/certs/aws-rds-global-bundle.pem
@@ -44,7 +44,7 @@ COPY --from=build --chown=node:node /workspace/apps/worker/dist ./apps/worker/di
 EXPOSE 9091
 CMD ["node", "apps/worker/dist/main.js"]
 
-FROM node:24-alpine AS portal
+FROM node:26-alpine AS portal
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
@@ -56,7 +56,7 @@ USER node
 EXPOSE 3000
 CMD ["node", "apps/portal/server.js"]
 
-FROM node:24-alpine AS migration
+FROM node:26-alpine AS migration
 ENV NODE_ENV=production
 WORKDIR /workspace
 COPY --from=rds-trust /aws-rds-global-bundle.pem /etc/ssl/certs/aws-rds-global-bundle.pem
@@ -67,7 +67,7 @@ COPY --chown=node:node database/migrations ./database/migrations
 USER node
 CMD ["node", "scripts/migrate.mjs"]
 
-FROM node:24-alpine AS local-seed
+FROM node:26-alpine AS local-seed
 ENV NODE_ENV=development
 WORKDIR /workspace
 COPY --from=production-dependencies --chown=node:node /workspace/node_modules ./node_modules
