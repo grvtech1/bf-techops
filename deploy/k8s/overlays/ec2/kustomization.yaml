@@ -64,17 +64,29 @@ generatorOptions:
 
 # Images → ECR. Base pehle merchant-*-image ko merchant-platform-* karta,
 # yahan un final naamo ko ECR URI pe point karte.
-# ECRHOST ko deploy se pehle sed se apne ECR host se replace karna hai.
+# newName = ECR host (account.dkr.ecr.region.amazonaws.com) — apna account ho to badlo.
 images:
   - name: merchant-platform-api
-    newName: ECRHOST/bf-techops/api
+    newName: 336129194698.dkr.ecr.ap-south-1.amazonaws.com/bf-techops/api
     newTag: v1
   - name: merchant-platform-worker
-    newName: ECRHOST/bf-techops/worker
+    newName: 336129194698.dkr.ecr.ap-south-1.amazonaws.com/bf-techops/worker
     newTag: v1
   - name: merchant-platform-portal
-    newName: ECRHOST/bf-techops/portal
+    newName: 336129194698.dkr.ecr.ap-south-1.amazonaws.com/bf-techops/portal
     newTag: v1
   - name: merchant-platform-migration
-    newName: ECRHOST/bf-techops/migration
+    newName: 336129194698.dkr.ecr.ap-south-1.amazonaws.com/bf-techops/migration
     newTag: v1
+
+# ServiceAccounts pe imagePullSecret — ArgoCD-deployed pods bhi ECR se pull
+# kar sakein (ecr-creds secret cluster me manually banta — token 12h expire).
+patches:
+  - target:
+      kind: ServiceAccount
+      name: "merchant-.*"
+    patch: |-
+      - op: add
+        path: /imagePullSecrets
+        value:
+          - name: ecr-creds
