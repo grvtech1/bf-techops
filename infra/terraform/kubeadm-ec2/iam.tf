@@ -23,6 +23,14 @@ resource "aws_iam_role_policy_attachment" "ebs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
+# 2b. ECR read — nodes private ECR se app images PULL kar sakein
+#     kubelet ka ECR credential-provider is role se auto-auth karta
+#     (isliye imagePullSecrets ki zaroorat nahi — node-level identity)
+resource "aws_iam_role_policy_attachment" "ecr" {
+  role       = aws_iam_role.node.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
 # 3. Instance Profile — role ko EC2 ko attach karne ka "wrapper"
 #    (EC2 seedha role nahi, instance-profile ke through leta)
 resource "aws_iam_instance_profile" "node" {

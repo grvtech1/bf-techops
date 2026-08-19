@@ -1,0 +1,80 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# ec2 overlay — self-managed kubeadm cluster on EC2.
+# local overlay jaisa (in-cluster MySQL + Redis), par images ECR se
+# (kind ka "local image load" EC2 pe kaam nahi karta).
+
+resources:
+  - ../../base                 # namespace, SAs, config, deployments, services, migrate Job
+  - dependencies.yaml # in-cluster MySQL StatefulSet + Redis (RDS nahi)
+
+# Secrets — local overlay se copy (in-cluster DB/Redis ke liye)
+secretGenerator:
+  - name: local-database
+    namespace: merchant-platform
+    literals:
+      - MYSQL_DATABASE=merchant_platform
+      - MYSQL_USER=merchant_app
+      - MYSQL_PASSWORD=local-only-password
+      - MYSQL_ROOT_PASSWORD=local-root-password
+  - name: merchant-api-runtime
+    namespace: merchant-platform
+    literals:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=merchant_platform
+      - MYSQL_USER=merchant_app
+      - MYSQL_PASSWORD=local-only-password
+      - MYSQL_SSL=false
+      - PLATFORM_API_KEY=local-platform-api-key-change-me
+      - ACTOR_TOKEN_SECRET=local-actor-token-secret-change-me-32-chars
+      - PAYMENT_PROVIDER=sandboxpay
+      - PAYMENT_WEBHOOK_SECRET=local-payment-webhook-secret-change-me-32-chars
+      - PAYMENT_WEBHOOK_TOLERANCE_SECONDS=300
+  - name: merchant-worker-runtime
+    namespace: merchant-platform
+    literals:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=merchant_platform
+      - MYSQL_USER=merchant_app
+      - MYSQL_PASSWORD=local-only-password
+      - MYSQL_SSL=false
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_TLS=false
+  - name: merchant-portal-runtime
+    namespace: merchant-platform
+    literals:
+      - PLATFORM_API_KEY=local-platform-api-key-change-me
+      - ALERT_WEBHOOK_TOKEN=local-alert-webhook-token-change-me
+  - name: merchant-migration-runtime
+    namespace: merchant-platform
+    literals:
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=merchant_platform
+      - MYSQL_USER=merchant_app
+      - MYSQL_PASSWORD=local-only-password
+      - MYSQL_SSL=false
+
+generatorOptions:
+  disableNameSuffixHash: true   # secret naam stable rahe (deployments secretRef match)
+
+# Images → ECR. Base pehle merchant-*-image ko merchant-platform-* karta,
+# yahan un final naamo ko ECR URI pe point karte.
+# ECRHOST ko deploy se pehle sed se apne ECR host se replace karna hai.
+images:
+  - name: merchant-platform-api
+    newName: ECRHOST/bf-techops/api
+    newTag: v1
+  - name: merchant-platform-worker
+    newName: ECRHOST/bf-techops/worker
+    newTag: v1
+  - name: merchant-platform-portal
+    newName: ECRHOST/bf-techops/portal
+    newTag: v1
+  - name: merchant-platform-migration
+    newName: ECRHOST/bf-techops/migration
+    newTag: v1
