@@ -50,7 +50,7 @@ jobs:
       API_INTERNAL_URL: http://127.0.0.1:8080
       ALERT_WEBHOOK_TOKEN: local-alert-webhook-token-change-me
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -116,7 +116,7 @@ jobs:
   delivery-config:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with: { node-version: 24 }
       - uses: azure/setup-kubectl@v5
@@ -159,7 +159,7 @@ jobs:
           - { target: portal, image: merchant-platform-portal }
           - { target: migration, image: merchant-platform-migration }
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
       - name: Build candidate
         uses: docker/build-push-action@v7
@@ -183,7 +183,7 @@ jobs:
   filesystem-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           scan-type: fs
