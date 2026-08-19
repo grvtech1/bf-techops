@@ -90,3 +90,9 @@ patches:
         path: /imagePullSecrets
         value:
           - name: ecr-creds
+
+# GitOps demo: portal replicas 2 → 3. Ye Git change push karo → ArgoCD
+# KHUD 3rd pod banayega (bina kubectl)। Yehi GitOps loop ka proof.
+replicas:
+  - name: merchant-portal
+    count: 3
