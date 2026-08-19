@@ -81,7 +81,14 @@ images:
 
 # ServiceAccounts pe imagePullSecret — ArgoCD-deployed pods bhi ECR se pull
 # kar sakein (ecr-creds secret cluster me manually banta — token 12h expire).
+# GitOps demo: portal replicas 2 → 3. Ye Git change push karo → ArgoCD
+# KHUD 3rd pod banayega (bina kubectl)। Yehi GitOps loop ka proof.
+replicas:
+  - name: merchant-portal
+    count: 3
+
 patches:
+  # SAs pe imagePullSecret — ArgoCD-deployed pods bhi ECR se pull kar sakein
   - target:
       kind: ServiceAccount
       name: "merchant-.*"
@@ -90,9 +97,13 @@ patches:
         path: /imagePullSecrets
         value:
           - name: ecr-creds
-
-# GitOps demo: portal replicas 2 → 3. Ye Git change push karo → ArgoCD
-# KHUD 3rd pod banayega (bina kubectl)। Yehi GitOps loop ka proof.
-replicas:
-  - name: merchant-portal
-    count: 3
+  # HPA hata rahe — metrics-server + Cluster Autoscaler (ASG) ke bina kaam
+  # nahi karta (scope se bahar); ArgoCD ka autoscaling/v2 discovery-glitch
+  # bhi isi se aa raha tha. $patch: delete = rendered output se HPA nikaal do.
+  - patch: |-
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: merchant-api
+        namespace: merchant-platform
